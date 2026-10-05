@@ -1,0 +1,1149 @@
+<!DOCTYPE html>
+<html lang="hy">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ՀՀ Ռեսուրսների, Լանդշաֆտների և Կլիմայի Միասնական Քարտեզ (Կետային)</title>
+    
+    <!-- Leaflet CSS & JS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <!-- Leaflet Draw CSS & JS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"/>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+    
+    <!-- Turf.js -->
+    <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
+    
+    <!-- Google Sign-In SDK -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+    <style>
+        * { box-sizing: border-box; }
+        html, body { margin: 0; padding: 0; width: 100%; height: 100%; font-family: 'Segoe UI', sans-serif; overflow: hidden; background: #1a202c; }
+        body { display: flex; }
+        
+        #sidebar { 
+            width: 320px; 
+            min-width: 320px;
+            height: 100vh;
+            background: #2d3748; 
+            color: white; 
+            padding: 20px; 
+            display: flex; 
+            flex-direction: column; 
+            gap: 12px; 
+            box-shadow: 2px 0 10px rgba(0,0,0,0.5); 
+            z-index: 1001; 
+            overflow-y: auto; 
+        }
+        
+        #map { 
+            flex-grow: 1; 
+            height: 100vh;
+            width: 100%;
+            position: relative; 
+            background: #e2e8f0;
+        }
+        
+        #mapHeaderTitle { 
+            position: absolute; 
+            top: 15px; 
+            left: 50%; 
+            transform: translateX(-50%); 
+            background: rgba(45, 55, 72, 0.95); 
+            color: #63b3ed; 
+            padding: 10px 24px; 
+            border-radius: 8px; 
+            font-weight: bold; 
+            font-size: 15px; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4); 
+            z-index: 1000; 
+            pointer-events: none; 
+            border: 1px solid #4a5568; 
+            text-transform: uppercase; 
+            letter-spacing: 0.5px; 
+        }
+        
+        .tool-group { border-bottom: 1px solid #4a5568; padding-bottom: 12px; }
+        h3 { margin: 0 0 8px 0; font-size: 13px; color: #63b3ed; text-transform: uppercase; }
+        
+        button, select, input, textarea { width: 100%; padding: 10px; margin-top: 5px; border-radius: 6px; border: none; font-weight: bold; cursor: pointer; background: #4a5568; color: white; font-family: inherit; font-size: 13px; box-sizing: border-box; }
+        select optgroup { background: #2d3748; color: #63b3ed; font-weight: bold; }
+        select option { background: #1a202c; color: white; font-weight: normal; }
+        textarea { height: 60px; resize: none; font-weight: normal;}
+        input[type="color"] { height: 40px; padding: 0; cursor: pointer;}
+        input[type="text"] { font-weight: normal;}
+        
+        .btn-danger { background: #e53e3e; }
+        .btn-success { background: #38a169; }
+        .btn-edit-popup { background: #3182ce; margin-top: 10px; font-size: 12px; padding: 5px; display: block; width: 100%; text-align: center; }
+
+        .category-group { background: #1a202c; border-radius: 8px; margin-bottom: 10px; overflow: hidden; transition: opacity 0.2s; }
+        .category-header { display: flex; align-items: center; padding: 10px; background: #3d4957; cursor: pointer; }
+        .category-header input { width: 18px; height: 18px; margin-right: 10px; cursor: pointer; margin-top: 0;}
+        .category-title { flex-grow: 1; font-weight: bold; font-size: 14px; }
+        .category-content { display: none; padding: 5px 10px; }
+        .category-content.open { display: block; }
+
+        .sub-item { display: flex; align-items: center; gap: 10px; padding: 8px; margin: 5px 0; border-radius: 4px; background: rgba(255,255,255,0.05); font-size: 13px; cursor: pointer; border-left: 3px solid #63b3ed; transition: all 0.2s; }
+        .sub-item:hover { background: rgba(255,255,255,0.1); }
+        
+        .custom-div-icon { background: none; border: none; text-align: center; transition: opacity 0.2s; display: flex; align-items: center; justify-content: center; }
+        .leaflet-control-attribution { display: none; }
+        
+        .share-box { background: #1a202c; padding: 8px; border-radius: 4px; border: 1px solid #4a5568; color: #63b3ed; font-size: 11px; word-break: break-all; margin-top: 5px; user-select: all; max-height: 50px; overflow-y: auto;}
+        .user-badge { font-size: 11px; color: #38a169; margin-top: 5px; font-weight: bold; display: block; text-align: center; }
+    </style>
+</head>
+<body>
+
+<div id="sidebar">
+    <div class="tool-group" id="authGroupSection">
+        <h3>Օգտատեր (Gmail)</h3>
+        <div id="g_id_onload"
+             data-client_id="325789692189-m2939jjhcqnagdmg3t8vjcambrl9r3pf.apps.googleusercontent.com" 
+             data-callback="handleCredentialResponse"
+             data-auto_select="false">
+        </div>
+        <div class="g_id_signin" data-type="standard" data-theme="filled_blue" data-size="large" data-width="280"></div>
+        <span id="userEmailBadge" class="user-badge" style="display:none;">🔒 Հյուրի ռեժիմ</span>
+    </div>
+
+    <div class="tool-group" id="titleGroupSection">
+        <h3>Քարտեզի Վերնագիր</h3>
+        <input type="text" id="mapTitleInput" placeholder="Մուտքագրեք քարտեզի անունը..." value="ՀՀ Միասնական Քարտեզ" oninput="updateLiveTitle(this.value)">
+    </div>
+
+    <div class="tool-group" id="myMapsGroupSection">
+        <h3>Իմ Քարտեզները</h3>
+        <button class="btn-success" style="background: #3182ce;" onclick="createNewMap()">➕ Ստեղծել նոր քարտեզ</button>
+        <div id="myMapsList" style="margin-top: 8px; max-height: 140px; overflow-y: auto;"></div>
+    </div>
+
+    <div class="tool-group" id="shareGroupSection">
+        <h3>Անհատական Հղում</h3>
+        <button class="btn-success" id="saveMapBtn" onclick="saveMapToURL()">💾 Պահպանել քարտեզը և ստանալ հղում</button>
+        <div id="shareLinkContainer" style="display:none;">
+            <div style="font-size:11px; margin-top:5px; color:#a0aec0;">Ձեր քարտեզի անհատական հղումը.</div>
+            <div id="shareLinkBox" class="share-box"></div>
+        </div>
+        <button class="btn-danger" id="clearAllBtn" style="margin-top: 8px;" onclick="if(confirm('Ջնջե՞լ ամբողջը:')) { window.location.hash=''; location.reload(); }">Մաքրել ամբողջ քարտեզը</button>
+    </div>
+
+    <div class="tool-group" id="mineralGroupSection">
+        <h3>Ընտրել Հանքատեսակը</h3>
+        <select id="mineralSelector" onchange="handleMineralChange()">
+            <option value="">-- Ընտրել հանքատեսակ --</option>
+            <option value="Ոսկի" data-icon="🟡">🟡 Ոսկի</option>
+            <option value="Պղինձ" data-icon="🟫">🟫 Պղինձ</option>
+            <option value="Պղնձամոլիբդեն" data-icon="🟠">🟠 Պղնձամոլիբդեն</option>
+            <option value="Մոլիբդեն" data-icon="🔷">🔷 Մոլիբդեն</option>
+            <option value="Երկաթ" data-icon="⛓️">⛓️ Երկաթ</option>
+            <option value="Ալյումին" data-icon="💿">💿 Ալյումին</option>
+            <option value="Ցինկ" data-icon="⚙️">⚙️ Ցինկ</option>
+            <option value="Օբսիդիան" data-icon="⚫">⚫ Օբսիդիան</option>
+            <option value="Տուֆ" data-icon="🧱">🧱 Տուֆ</option>
+            <option value="Բազալտ" data-icon="⚫">⚫ Բազալտ</option>
+            <option value="Մարմար" data-icon="⚪">⚪ Մարմար</option>
+            <option value="Կրաքար" data-icon="◽">◽ Կրաքար</option>
+            <option value="Տրավերտին" data-icon="🪨">🪨 Տրավերտին</option>
+            <option value="Կվարց" data-icon="🔮">🔮 Կվարց</option>
+            <option value="Պեռլիտ" data-icon="🌫️">🌫️ Պեռլիտ</option>
+            <option value="Կավ" data-icon="🟫">🟫 Կավ</option>
+            <option value="Ավազ" data-icon="🟨">🟨 Ավազ</option>
+            <option value="Հանքային ջուր" data-icon="💧">💧 Հանքային ջուր</option>
+        </select>
+    </div>
+
+    <div class="tool-group" id="animalGroupSection">
+        <h3>Ընտրել Կենդանատեսակը</h3>
+        <select id="animalSelector" onchange="handleAnimalChange()">
+            <option value="">-- Ընտրել կենդանատեսակ --</option>
+            <optgroup label="Կաթնասուններ">
+                <option value="Գորշ արջ" data-icon="https://img.icons8.com/color/48/bear.png">🐻 Գորշ արջ</option>
+                <option value="Գայլ" data-icon="https://img.icons8.com/?size=100&id=FXCZgLgKpBk6&format=png&color=000000">🐺 Գայլ</option>
+                <option value="Սովորական աղվես" data-icon="https://img.icons8.com/color/48/fox.png">🦊 Սովորական աղվես</option>
+                <option value="Ոսկեգույն շնագայլ" data-icon="https://img.icons8.com/?size=100&id=VoX5svOKGF9P&format=png&color=000000">🐕 Ոսկեգույն շնագայլ</option>
+                <option value="Լուսան" data-icon="https://img.icons8.com/?size=100&id=lkXkoKMxtZL2&format=png&color=000000">🐆 Լուսան</option>
+                <option value="Մանուլ" data-icon="https://img.icons8.com/color/48/cat.png" data-desc="Հայաստանում հազվագյուտ հանդիպող, գաղտնի ու փարթամ մորթիով վայրի կատվազգի։">🐱 Մանուլ</option>
+                <option value="Առաջավորասիական հովազ" data-icon="https://img.icons8.com/color/48/leopard.png" data-desc="Հայաստանի բնության ամենավեհաշուք ու հազվագյուտ կատվազգի գիշատիչը։">🐆 Առաջավորասիական հովազ</option>
+                <option value="Վայրի խոզ (Վարազ)" data-icon="https://img.icons8.com/?size=100&id=2R5IE9H5ssm8&format=png&color=000000" data-desc="Անտառներում և եղեգնուտներում ապրող խոշոր, մուգ մոխրագույն ամենակեր կենդանի։">🐗 Վայրի խոզ (Վարազ)</option>
+                <option value="Ազնվացեղ եղջերու" data-icon="https://img.icons8.com/color/48/deer.png" data-desc="Հայաստանի անտառների պատմական բնակիչը, որն ունի մեծ ու ճյուղավորված կոտոշներ։">🦌 Ազնվացեղ եղջերու</option>
+                <option value="Եղնիկ" data-icon="https://img.icons8.com/?size=100&id=BmcjEXJZDAyw&format=png&color=000000" data-desc="Նուրբ ու գեղեցիկ սլացիկ կենդանի, որը չունի ձիու կոպիտ տեսք։">🦌 Եղնիկ</option>
+                <option value="Այծյամ" data-icon="https://img.icons8.com/?size=100&id=7xftIHyu7XB7&format=png&color=000000" data-desc="Նրբագեղ ու փոքրիկ կենդանի՝ բնորոշ սուր ուղղահայաց կոտոշներով։">🦌 Այծյամ</option>
+                <option value="Բեզոարյան այծ" data-icon="https://img.icons8.com/?size=100&id=VMyrXO7oHnA3&format=png&color=000000" data-desc="Լեռնային սլացիկ կենդանի՝ դեպի վեր ու ետ ձգվող հսկայական մուգ եղջյուրներով։">🐐 Բեզոարյան այծ</option>
+                <option value="Հայկական մուֆլոն" data-icon="https://img.icons8.com/?size=100&id=AyOrOhZKt2Qa&format=png&color=000000" data-desc="Մեր լեռնային վայրի խոյը՝ խոշոր պտտված եղջյուրներով, մուգ երանգով և առանց ընտանի ոչխարի բրդի։">🐏 Հայկական մուֆլոն</option>
+                <option value="Գորշ նապաստակ" data-icon="https://img.icons8.com/color/48/rabbit.png" data-desc="Լեռնատափաստանային արագաշարժ կենդանի։">🐇 Գորշ նապաստակ</option>
+                <option value="Սովորական ոզնի" data-icon="https://img.icons8.com/color/48/hedgehog.png" data-desc="Մեր բնության փոքրիկ կենդանիներից։">🦔 Սովորական ոզնի</option>
+                <option value="Հնդկական մացառախոզ" data-icon="https://img.icons8.com/?size=100&id=4T87wYbUhhZu&format=png&color=000000" data-desc="Մարմնի հետին մասում երկար ու սուր ասեղանման փշերով պատված խոշոր վայրի կրծող։">🦔 Հնդկական մացառախոզ</option>
+                <option value="Ճագարամուկ" data-icon="https://img.icons8.com/?size=100&id=gu7Rg1hRoW6f&format=png&color=000000" data-desc="Երկար ականջներով ու հետին ոտքերով ցատկող մկնակերպ կրծող։">🐭 Ճագարամուկ</option>
+                <option value="Դաշտամուկ" data-icon="https://img.icons8.com/?size=100&id=95005&format=png&color=000000" data-desc="Փոքրիկ դաշտային կրծող, որը բնակվում է բաց մարգագետիններում։">🐭 Դաշտամուկ</option>
+                <option value="Կովկասյան սկյուռ" data-icon="https://img.icons8.com/color/48/squirrel.png">🐿️ Կովկասյան սկյուռ</option>
+                <option value="Խլուրդ" data-icon="https://img.icons8.com/color/48/beaver.png" data-desc="Ստորգետնյա կյանք վարող, մուգ գույնի փորող իսկական կենդանի։">🐾 Խլուրդ</option>
+                <option value="Գորշուկ" data-icon="https://img.icons8.com/?size=100&id=iCy0OAdWE5J2&format=png&color=000000" data-img="https://i.postimg.cc/Ss2X1b1j/gorsuk.png" data-desc="Ուժեղ թաթերով ստորգետնյա խորը բներ փորող ամենակեր կենդանի։">🦡 Գորշուկ</option>
+                <option value="Աքիս" data-icon="https://img.icons8.com/?size=100&id=JOGeIaOU32xY&format=png&color=000000" data-desc="Մեր ամենափոքր, ճարպիկ, դեղնանարնջագույն երանգով արագաշարժ գիշատիչը։">🦦 Աքիս</option>
+                <option value="Կզաքիս" data-icon="https://img.icons8.com/?size=100&id=wp16sE8oqX4F&format=png&color=000000" data-desc="Ծառամագլցող ճարպիկ, մուգ ու սլացիկ կատվանման կենդանի։">🦦 Կզաքիս</option>
+                <option value="Ժանտաքիս" data-icon="https://img.icons8.com/?size=100&id=xJwnS1yJmpBi&format=png&color=000000" data-desc="Գիշերային փոքրիկ վայրի կենդանի, որը վտանգի դեպքում արտազատում է խիստ տհաճ հոտ։">🦨 Ժանտաքիս</option>
+                <option value="Ջրասամույր" data-icon="https://img.icons8.com/?size=100&id=WQRTPfEIVmr4&format=png&color=000000" data-desc="Գետնասամույրների ընտանիքին պատկանող մուգ դարչնագույն կաթնասուն։">🦦 Ջրասամույր</option>
+                <option value="Չղջիկներ" data-icon="https://img.icons8.com/color/48/bat.png">🦇 Չղջիկներ</option>
+            </optgroup>
+            <optgroup label="Թռչուններ">
+                <option value="Քարարծիվ" data-icon="https://img.icons8.com/?size=100&id=yb7r2rdbifEu&format=png&color=000000">🦅 Քարարծիվ</option>
+                <option value="Սպիտակ արագիլ" data-icon="https://img.icons8.com/?size=100&id=-V8lMH07TBqC&format=png&color=000000" data-desc="Մեր բնակավայրերում հարգված սպիտակ վեհաշուք թռչուն։">🕊️ Սպիտակ արագիլ</option>
+                <option value="Սև Արագիլ" data-icon="https://img.icons8.com/color/48/stork.png" data-desc="Խիստ զգուշավոր, մուգ սև երանգներով հազվագյուտ թռչուն։">🦢 Սև Արագիլ</option>
+                <option value="Գանգափետուր Հավալուսն" data-icon="https://img.icons8.com/color/48/pelican.png" data-desc="Ամբողջովին սպիտակ, մեծ մարմնով և ձկներ որսալու հսկայական մեծ կտուցով ջրլող թռչուն։">🦆 Գանգափետուր Հավալուսն</option>
+                <option value="Հայկական որոր" data-icon="https://img.icons8.com/color/48/seagull.png" data-desc="Սևանա լճի ափերին բնորոշ սպիտակ-մոխրագույն իսկական թռչուն՝ դեղնավոտ։">🐦 Հայկական որոր</option>
+                <option value="Մեծ Արոս" data-icon="https://img.icons8.com/color/48/bird.png" data-desc="Հայաստանի տափաստանների խոշորագույն, ծանր ու մուգ նախշավոր երանգներով թռչունը։">🐦 Մեծ Արոս</option>
+                <option value="Քարակաքավ" data-icon="https://img.icons8.com/?size=100&id=W03guLeyANzS&format=png&color=000000" data-desc="Լեռնային գոտիներում ապրող, մոխրագույն/դարչնագույն նախշերով քողարկվող վայրի թռչուն։">🐦 Քարակաքավ</option>
+                <option value="Սովորական հողմավար բազե" data-icon="https://img.icons8.com/?size=100&id=16053&format=png&color=000000">🦅 Սովորական հողմավար բազե</option>
+                <option value="Գառնանգղ" data-icon="https://img.icons8.com/?size=100&id=iwjGbOXkLE6i&format=png&color=000000" data-desc="Լեռնային խոշոր ու հզոր գիշատիչ թռչուն։">🦅 Գառնանգղ</option>
+                <option value="Սև ագռավ" data-icon="https://img.icons8.com/?size=100&id=yNAee9X2YN5d&format=png&color=000000" data-desc="Խելացի և մեծ թռչուն, որն ունի ամբողջությամբ փայլուն սև փետրավորում։">🐦 Սև ագռավ</option>
+                <option value="Կաչաղակ" data-icon="https://img.icons8.com/?size=100&id=7Dr26F16cB0x&format=png&color=000000" data-desc="Խելացի թռչուն՝ հստակ արտահայտված սև ու սպիտակ փետրավորմամբ։">🐦 Կաչաղակ</option>
+                <option value="Փասիան" data-icon="https://img.icons8.com/?size=100&id=124324&format=png&color=000000" data-desc="Խելացի թռչուն՝ հստակ արտահայտված սև ու սպիտակ փետրավորմամբ։">🐦 Փասիան</option>
+                <option value="Գյուղական ծիծեռնակ" data-icon="https://img.icons8.com/?size=100&id=DpZOPjHu9Ywe&format=png&color=000000" data-desc="Գարնան սլացիկ թռչնակ, որն աչքի է ընկնում արագ թռիչքով։">🐦 Գյուղական ծիծեռնակ</option>
+                <option value="Արտույտ" data-icon="https://img.icons8.com/?size=100&id=pyrifOfOJV7F&format=png&color=000000" data-desc="Գարնան սլացիկ թռչնակ, որն աչքի է ընկնում արագ թռիչքով։">🐦 Արտույտ</option>
+                <option value="Կռունկ" data-icon="https://img.icons8.com/?size=100&id=OZhsaydy1Z4i&format=png&color=000000" data-desc="Գարնան սլացիկ թռչնակ, որն աչքի է ընկնում արագ թռիչքով։">🐦 Կռունկ</option>
+                <option value="Անտառային բու" data-icon="https://img.icons8.com/color/48/owl.png" data-desc="Գիշերային կյանք վարող իսկական բու։">🦉 Անտառային բու</option>
+                <option value="Սև անգղ" data-icon="https://img.icons8.com/?size=100&id=8yNTuqy4EpaK&format=png&color=000000" data-desc="Մեր լեռներում սավառնող հսկա սև գիշատիչ թռչուն։">🦅 Սև անգղ</option>
+            </optgroup>
+            <optgroup label="Սողուններ և Երկկենցաղներ">
+                <option value="Գյուրզա" data-icon="https://img.icons8.com/color/48/snake.png">🐍 Գյուրզա</option>
+                <option value="Հայկական իժ" data-icon="https://img.icons8.com/?size=100&id=MaGBWR7lkIXS&format=png&color=000000" data-desc="Մեր լեռնային էնդեմիկ թունավոր օձերից, որն ունի հատուկ պահպանման կարգավիճակ։">🐍 Հայկական իժ</option>
+                <option value="Ջրային լորտու" data-icon="https://img.icons8.com/?size=100&id=OwPRfsLEUW71&format=png&color=000000">🐍 Ջրային լորտու</option>
+                <option value="Ճարպիկ մողես" data-icon="https://img.icons8.com/color/48/lizard.png">🦎 Ճարպիկ մողես</option>
+                <option value="Կովկասյան Ագամա" data-icon="https://img.icons8.com/?size=100&id=80895&format=png&color=000000">🦎 Կովկասյան ագամա</option>
+                <option value="Հայկական ժայռային մողես" data-icon="https://img.icons8.com/?size=100&id=UoIYjsa9KdQ7&format=png&color=000000" data-desc="Ժայռերում բնակվող լեռնային իսկական սողուն։">🦎 Հայկական ժայռային մողես</option>
+                <option value="Միջերկրածովյան կրիա" data-icon="https://img.icons8.com/?size=100&id=101727&format=png&color=000000">🐸 Միջերկրածովյան կրիա</option>
+                <option value="Լճագորտ" data-icon="https://img.icons8.com/?size=100&id=MDaojVg33ORG&format=png&color=000000">🐸 Լճագորտ</option>
+                <option value="Կանաչ դոդոշ" data-icon="https://img.icons8.com/color/48/frog.png" data-desc="Մեր լեռնային բնորոշ կանաչավուն երկկենցաղներից։">🐸 Կանաչ դոդոշ</option>
+            </optgroup>
+            <optgroup label="Ձկներ">
+                <option value="Սևանի իշխան" data-icon="https://img.icons8.com/?size=100&id=YEDY5MWbm6YU&format=png&color=000000">🐟 Սևանի իշխան</option>
+                <option value="Սիգ" data-icon="https://img.icons8.com/?size=100&id=6do4AQvs7XRg&format=png&color=000000">🐟 Սիգ</option>
+                <option value="Կարմրախայտ" data-icon="https://img.icons8.com/?size=100&id=JXqGE8xiFxiT&format=png&color=000000">🐟 Կարմրախայտ</option>
+                <option value="Կողակ" data-icon="https://img.icons8.com/?size=100&id=45NxBOekDsBG&format=png&color=000000">🐟 Կողակ</option>
+            </optgroup>
+            <optgroup label="Միջատներ">
+                <option value="Հայկական որդան կարմիր" data-icon="https://img.icons8.com/?size=100&id=Xag1IcBMyBj2&format=png&color=000000" data-desc="Թեև միջատ է, բայց ունի պատմական մեծ արժեք։">🐞 Հայկական որդան կարմիր</option>
+            </optgroup>
+        </select>
+    </div>
+
+    <div class="tool-group" id="climateGroupSection">
+        <h3>Կլիմայի վերընթաց գոտիները</h3>
+        <select id="climateSelector" onchange="handleClimateChange()">
+            <option value="">-- Ընտրել կլիմայի տիպը --</option>
+            <option value="Չոր խիստ ցամաքային" data-icon="🏜️">🏜️ Չոր խիստ ցամաքային</option>
+            <option value="Չոր ցամաքային" data-icon="☀️">☀️ Չոր ցամաքային</option>
+            <option value="Չափավոր ցամաքային" data-icon="🌾">🌾 Չափավոր ցամաքային</option>
+            <option value="Չափավոր շոգ" data-icon="🍊">🍊 Չափավոր շոգ</option>
+            <option value="Չոր Մերձարևադարձային" data-icon="🌤️">🌤️ Չոր Մերձարևադարձային</option>
+            <option value="Բարեխառն լեռնային" data-icon="🌲">🌲 Բարեխառն լեռնային</option>
+            <option value="Ցուրտ լեռնային" data-icon="🏔️">🏔️ Ցուրտ լեռնային</option>
+            <option value="Ձյունամերձ կլիմա" data-icon="☃️">☃️ Ձյունամերձ</option>
+        </select>
+    </div>
+
+    <div class="tool-group" id="landscapeGroupSection">
+        <h3>ՀՀ վերընթաց լանդշաֆտները</h3>
+        <select id="landscapeSelector" onchange="handleLandscapeChange()">
+            <option value="">-- Ընտրել լանդշաֆտի տիպը --</option>
+            <option value="Կիսաանապատային և անապատային" data-icon="🏜️">🏜️ Կիսաանապատային և անապատային</option>
+            <option value="Չոր լեռնատափաստան" data-icon="🌾">🌾 Չոր լեռնատափաստան</option>
+            <option value="Լեռնատափաստան" data-icon="⛰️">⛰️ Լեռնատափաստան</option>
+            <option value="Լեռնանտառային" data-icon="🌳">🌳 Լեռնանտառային</option>
+            <option value="Մերձալպյան ու ալպյան մարգագետիններ" data-icon="🌸">🌸 Մերձալպյան ու ալպյան մարգագետիններ</option>
+            <option value="Ձյունամերձ լանդշաֆտ" data-icon="☃️">☃️ Ձյունամերձ</option>
+        </select>
+    </div>
+
+    <div class="tool-group" id="colorGroupSection">
+        <label style="font-size: 11px; display: block;">Մակերեսի / Նշանի գույն.</label>
+        <input type="color" id="colorPicker" value="#4a5568">
+    </div>
+
+    <div class="tool-group">
+        <h3>Ֆիլտրեր ըստ տեսակների</h3>
+        <div id="legend-list"></div>
+    </div>
+</div>
+
+<div id="map">
+    <div id="mapHeaderTitle">ՀՀ Միասնական Քարտեզ</div>
+</div>
+
+<script>
+    // Քարտեզի սկզբնավորում
+    const map = L.map('map', { zoomSnap: 0.1 }).setView([40.18, 44.5], 8);
+
+    // OpenStreetMap տախտակները
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '© OpenStreetMap'
+    }).addTo(map);
+
+    const drawnItems = new L.FeatureGroup();
+    map.addLayer(drawnItems);
+
+    const activeFilters = {};
+    let highlightMode = null;  
+    let highlightValue = null; 
+    let currentUserEmail = null; 
+    let loadedMapAuthor = null;  
+
+    function handleMineralChange() {
+        if (document.getElementById('mineralSelector').value !== "") {
+            document.getElementById('animalSelector').value = "";
+            document.getElementById('climateSelector').value = "";
+            document.getElementById('landscapeSelector').value = "";
+        }
+    }
+
+    function handleAnimalChange() {
+        if (document.getElementById('animalSelector').value !== "") {
+            document.getElementById('mineralSelector').value = "";
+            document.getElementById('climateSelector').value = "";
+            document.getElementById('landscapeSelector').value = "";
+        }
+    }
+
+    function handleClimateChange() {
+        if (document.getElementById('climateSelector').value !== "") {
+            document.getElementById('mineralSelector').value = "";
+            document.getElementById('animalSelector').value = "";
+            document.getElementById('landscapeSelector').value = "";
+        }
+    }
+
+    function handleLandscapeChange() {
+        if (document.getElementById('landscapeSelector').value !== "") {
+            document.getElementById('mineralSelector').value = "";
+            document.getElementById('animalSelector').value = "";
+            document.getElementById('climateSelector').value = "";
+        }
+    }
+
+    function handleCredentialResponse(response) {
+        const user = decodeJwt(response.credential);
+        currentUserEmail = user.email;
+        document.getElementById('userEmailBadge').innerText = "👤 " + currentUserEmail;
+        document.getElementById('userEmailBadge').style.display = 'block';
+        
+        checkPermissions();
+        renderMyMapsList();
+    }
+
+    function decodeJwt(token) {
+        var base64Url = token.split('.')[1];
+        var base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        var jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
+            return '%' + ('0' + c.charCodeAt(0).toString(16)).slice(-2);
+        }).join(''));
+        return JSON.parse(jsonPayload);
+    }
+
+    function updateLiveTitle(val) {
+        document.getElementById('mapHeaderTitle').innerText = val.trim() || "ՀՀ Միասնական Քարտեզ";
+    }
+
+    let isDrawControlActive = true;
+    function checkPermissions() {
+        const isEditable = currentUserEmail && (!loadedMapAuthor || loadedMapAuthor === "Guest" || loadedMapAuthor === currentUserEmail);
+        
+        if (!isEditable) {
+            if (isDrawControlActive) {
+                map.removeControl(drawControl);
+                isDrawControlActive = false;
+            }
+        } else {
+            if (!isDrawControlActive) {
+                map.addControl(drawControl);
+                isDrawControlActive = true;
+            }
+        }
+
+        if (!currentUserEmail) {
+            document.getElementById('titleGroupSection').style.display = 'none';
+            document.getElementById('myMapsGroupSection').style.display = 'none';
+            document.getElementById('shareGroupSection').style.display = 'none';
+            document.getElementById('mineralGroupSection').style.display = 'none';
+            document.getElementById('animalGroupSection').style.display = 'none';
+            document.getElementById('climateGroupSection').style.display = 'none';
+            document.getElementById('landscapeGroupSection').style.display = 'none';
+            document.getElementById('colorGroupSection').style.display = 'none';
+        } else if (!isEditable) {
+            document.getElementById('titleGroupSection').style.display = 'none';
+            document.getElementById('myMapsGroupSection').style.display = 'block'; 
+            document.getElementById('shareGroupSection').style.display = 'none'; 
+            document.getElementById('mineralGroupSection').style.display = 'none';
+            document.getElementById('animalGroupSection').style.display = 'none';
+            document.getElementById('climateGroupSection').style.display = 'none';
+            document.getElementById('landscapeGroupSection').style.display = 'none';
+            document.getElementById('colorGroupSection').style.display = 'none';
+        } else {
+            document.getElementById('titleGroupSection').style.display = 'block';
+            document.getElementById('myMapsGroupSection').style.display = 'block';
+            document.getElementById('shareGroupSection').style.display = 'block';
+            document.getElementById('mineralGroupSection').style.display = 'block';
+            document.getElementById('animalGroupSection').style.display = 'block';
+            document.getElementById('climateGroupSection').style.display = 'block';
+            document.getElementById('landscapeGroupSection').style.display = 'block';
+            document.getElementById('colorGroupSection').style.display = 'block';
+        }
+
+        drawnItems.eachLayer(layer => {
+            updatePopup(layer);
+        });
+    }
+
+    function createNewMap() {
+        if (drawnItems.getLayers().length > 0) {
+            if (confirm('Բացել նոր մաքուր քարտե՞զ։ Համոզվեք, որ պահպանել եք ընթացիկ աշխատանքը։')) {
+                window.location.hash = '';
+                location.reload();
+            }
+        } else {
+            window.location.hash = '';
+            location.reload();
+        }
+    }
+
+    function saveToLocalStorageList(title, hash) {
+        let list = JSON.parse(localStorage.getItem('hh_maps_storage')) || [];
+        const existingIndex = list.findIndex(m => m.hash === hash);
+        const activeAuthor = currentUserEmail || "Guest";
+
+        if (existingIndex > -1) {
+            list[existingIndex].title = title;
+            list[existingIndex].author = activeAuthor;
+        } else {
+            list.push({
+                title: title,
+                hash: hash,
+                author: activeAuthor
+            });
+        }
+        localStorage.setItem('hh_maps_storage', JSON.stringify(list));
+        renderMyMapsList();
+    }
+
+    function renderMyMapsList() {
+        const container = document.getElementById('myMapsList');
+        container.innerHTML = '';
+        let list = JSON.parse(localStorage.getItem('hh_maps_storage')) || [];
+        const activeAuthor = currentUserEmail || "Guest";
+        const myMaps = list.filter(m => m.author === activeAuthor);
+
+        if (myMaps.length === 0) {
+            container.innerHTML = '<div style="font-size:11px; color:#a0aec0; text-align:center; padding:5px;">Պահպանված քարտեզներ չկան</div>';
+            return;
+        }
+
+        myMaps.forEach(m => {
+            const item = document.createElement('div');
+            item.className = 'sub-item';
+            item.style.borderLeftColor = '#38a169';
+            item.style.display = 'flex';
+            item.style.justifyContent = 'space-between';
+            item.style.alignItems = 'center';
+            item.style.padding = '6px 8px';
+            
+            const titleSpan = document.createElement('span');
+            titleSpan.innerHTML = `<b>${m.title}</b>`;
+            titleSpan.style.cursor = 'pointer';
+            titleSpan.onclick = () => {
+                window.location.hash = m.hash;
+                location.reload();
+            };
+
+            const deleteBtn = document.createElement('span');
+            deleteBtn.innerHTML = '❌';
+            deleteBtn.style.cursor = 'pointer';
+            deleteBtn.onclick = (e) => {
+                e.stopPropagation();
+                if (confirm('Ջնջե՞լ այս քարտեզը ցուցակից:')) {
+                    let fullList = JSON.parse(localStorage.getItem('hh_maps_storage')) || [];
+                    fullList = fullList.filter(item => item.hash !== m.hash);
+                    localStorage.setItem('hh_maps_storage', JSON.stringify(fullList));
+                    if (window.location.hash.substring(1) === m.hash) {
+                        window.location.hash = '';
+                    }
+                    location.reload();
+                }
+            };
+
+            item.appendChild(titleSpan);
+            item.appendChild(deleteBtn);
+            container.appendChild(item);
+        });
+    }
+
+    function getResourceOptionsHtml() {
+        let html = '';
+        const mineralSelect = document.getElementById('mineralSelector');
+        html += `<optgroup label="💎 Հանքատեսակներ">`;
+        for(let i = 1; i < mineralSelect.options.length; i++) {
+            let opt = mineralSelect.options[i];
+            html += `<option value="${opt.value}" data-icon="${opt.getAttribute('data-icon')}">${opt.text}</option>`;
+        }
+        html += `</optgroup>`;
+
+        const animalSelect = document.getElementById('animalSelector');
+        const animalClone = animalSelect.cloneNode(true);
+        if(animalClone.firstElementChild && animalClone.firstElementChild.value === "") {
+            animalClone.removeChild(animalClone.firstElementChild);
+        }
+        html += animalClone.innerHTML;
+
+        const climateSelect = document.getElementById('climateSelector');
+        html += `<optgroup label="⛅ Կլիմայի վերընթաց գոտիներ">`;
+        for(let i = 1; i < climateSelect.options.length; i++) {
+            let opt = climateSelect.options[i];
+            html += `<option value="${opt.value}" data-icon="${opt.getAttribute('data-icon')}">${opt.text}</option>`;
+        }
+        html += `</optgroup>`;
+        
+        const landscapeSelect = document.getElementById('landscapeSelector');
+        html += `<optgroup label="🏞 ՀՀ վերընթաց լանդշաֆտներ">`;
+        for(let i = 1; i < landscapeSelect.options.length; i++) {
+            let opt = landscapeSelect.options[i];
+            html += `<option value="${opt.value}" data-icon="${opt.getAttribute('data-icon')}">${opt.text}</option>`;
+        }
+        html += `</optgroup>`;
+
+        return html;
+    }
+
+    function updateSingleMarkerIcon(layer) {
+        if (!(layer instanceof L.Marker)) return;
+        const currentZoom = map.getZoom();
+        const iconEmoji = layer.options.resourceIcon;
+        
+        let iconHtml = '';
+        let iconSize, anchor;
+
+        if (iconEmoji) {
+            const fontSize = Math.max(26, currentZoom * 4.5);
+            iconSize = fontSize + 6;
+            anchor = iconSize / 2;
+            
+            if (iconEmoji.startsWith('http')) {
+                iconHtml = `<img src="${iconEmoji}" style="width:${fontSize}px; height:${fontSize}px; filter: drop-shadow(0 0 2px rgba(0,0,0,0.5)); transition: all 0.1s;" />`;
+            } else {
+                iconHtml = `<div style="font-size:${fontSize}px; filter: drop-shadow(0 0 2px rgba(0,0,0,0.5)); line-height: 1; transition: font-size 0.1s;">${iconEmoji}</div>`;
+            }
+        } else {
+            iconSize = Math.max(16, currentZoom * 2.8);
+            anchor = iconSize / 2;
+            const markerColor = layer.options.color || '#3182ce';
+            iconHtml = `
+                <div style="
+                    background: ${markerColor};
+                    width: ${iconSize}px;
+                    height: ${iconSize}px;
+                    border-radius: 50%;
+                    border: 1.5px solid #ffffff;
+                    box-shadow: 0 0 4px rgba(0,0,0,0.4);
+                    box-sizing: border-box;
+                    transition: width 0.1s, height 0.1s;
+                "></div>`;
+        }
+        
+        layer.setIcon(L.divIcon({ 
+            html: iconHtml, 
+            className: 'custom-div-icon', 
+            iconSize: [iconSize, iconSize], 
+            iconAnchor: [anchor, anchor] 
+        }));
+        
+        if (highlightMode !== null) {
+            let matchTitle = "";
+            if (highlightMode === 'id') {
+                const targetLayer = drawnItems.getLayer(highlightValue);
+                if (targetLayer) matchTitle = targetLayer.options.title;
+            } else if (highlightMode === 'title') {
+                matchTitle = highlightValue;
+            }
+            let isMatch = (layer.options.title === matchTitle);
+            if (layer.getElement && layer.getElement()) {
+                layer.getElement().style.opacity = isMatch ? "1" : "0.4";
+            }
+        }
+    }
+
+    map.on('zoomend', function() {
+        drawnItems.eachLayer(layer => {
+            if (layer instanceof L.Marker) updateSingleMarkerIcon(layer);
+        });
+    });
+
+    function activateHighlight(mode, value) {
+        highlightMode = mode;
+        highlightValue = value;
+        
+        let matchTitle = "";
+        if (mode === 'id') {
+            const targetLayer = drawnItems.getLayer(value);
+            if (targetLayer) matchTitle = targetLayer.options.title;
+        } else if (mode === 'title') {
+            matchTitle = value;
+        }
+        
+        drawnItems.eachLayer(layer => {
+            let isMatch = (layer.options.title === matchTitle);
+
+            if (isMatch) {
+                if (layer.setStyle) layer.setStyle({ opacity: 1, fillOpacity: 0.75, weight: 3 });
+                if (layer.getElement && layer.getElement()) layer.getElement().style.opacity = "1";
+            } else {
+                if (layer.setStyle) layer.setStyle({ opacity: 0.4, fillOpacity: 0.15, weight: 1.5 });
+                if (layer.getElement && layer.getElement()) layer.getElement().style.opacity = "0.4";
+            }
+        });
+
+        document.querySelectorAll('.sub-item').forEach(el => {
+            let isMatch = (el.getAttribute('data-title') === matchTitle);
+            if (isMatch) {
+                el.style.opacity = "1";
+                el.style.background = "rgba(99, 179, 237, 0.25)";
+                el.style.transform = "scale(1.02)";
+            } else {
+                el.style.opacity = "0.4"; 
+                el.style.background = "rgba(255,255,255,0.05)";
+                el.style.transform = "scale(1)";
+            }
+        });
+    }
+
+    function resetHighlight() {
+        if (map.options.closePopupOnClick === false) return;
+
+        highlightMode = null;
+        highlightValue = null;
+        
+        drawnItems.eachLayer(layer => {
+            if (layer.setStyle) layer.setStyle({ opacity: 1, fillOpacity: 0.5, weight: 2 });
+            if (layer.getElement && layer.getElement()) layer.getElement().style.opacity = "1";
+        });
+
+        document.querySelectorAll('.sub-item').forEach(el => {
+            el.style.opacity = "1";
+            el.style.background = "rgba(255,255,255,0.05)";
+            el.style.transform = "scale(1)";
+        });
+    }
+
+    map.on('click', function() { resetHighlight(); });
+
+    function attachLayerClickEvent(layer) {
+        const id = drawnItems.getLayerId(layer);
+
+        layer.on('click', function(e) {
+            activateHighlight('id', id);
+        });
+
+        layer.on('contextmenu', function(e) {
+            const isEditable = currentUserEmail && (!loadedMapAuthor || loadedMapAuthor === "Guest" || loadedMapAuthor === currentUserEmail);
+            if (!isEditable) return;
+
+            if (e && e.originalEvent) {
+                L.DomEvent.stopPropagation(e);
+                e.originalEvent.preventDefault(); 
+            }
+            activateHighlight('id', id);
+            editLayerData(id); 
+        });
+    }
+
+    function editLayerData(id) {
+        const layer = drawnItems.getLayer(id);
+        if (!layer) return;
+
+        map.options.closePopupOnClick = false;
+        map.closePopup();
+        layer.closePopup();
+
+        const optionsHtml = getResourceOptionsHtml();
+        const content = document.createElement('div');
+        content.style.minWidth = "250px";
+        content.style.display = "flex";
+        content.style.flexDirection = "column";
+        content.style.gap = "5px";
+
+        content.innerHTML = `
+            <h4 style="margin: 0 0 5px 0; color: #2c3e50;">Խմբագրել տվյալները</h4>
+            <label style="font-size: 11px;">Անվանում.</label>
+            <input type="text" id="edit-title" value="${layer.options.title || ''}" placeholder="Մուտքագրեք անվանումը">
+            <label style="font-size: 11px;">Բացատրություն.</label>
+            <textarea id="edit-description" placeholder="Բացատրություն / Տեղեկություն">${layer.options.description || ''}</textarea>
+            
+            <label style="font-size: 11px;">Հղման Տեքստ / Բառ.</label>
+            <input type="text" id="edit-link-text" value="${layer.options.linkText || ''}" placeholder="օր․ Կարդալ ավելին">
+            <label style="font-size: 11px;">Հղման URL (Link).</label>
+            <input type="text" id="edit-link-url" value="${layer.options.linkUrl || ''}" placeholder="https://example.com">
+
+            <label style="font-size: 11px;">Կցել նկար.</label>
+            <input type="file" id="edit-image" accept="image/*" onchange="encodeImageFileAsURL(this)" data-base64="${layer.options.image || ''}">
+            <label style="font-size: 11px; margin-top: 5px;">Տեսակ.</label>
+            <select id="edit-resourceType">
+                ${optionsHtml}
+            </select>
+            <label style="font-size: 11px; margin-top: 5px;">Գույն.</label>
+            <input type="color" id="edit-color" value="${layer.options.color || '#3498db'}">
+            <div style="display: flex; gap: 5px; margin-top: 10px;">
+                <button class="btn-edit-popup" style="background: #27ae60; flex-grow: 1; color: white; margin-top:0;" onclick="saveLayerData(event, ${id})">Պահպանել</button>
+                <button class="btn-edit-popup" style="background: #95a5a6; flex-grow: 1; color: white; margin-top:0;" onclick="cancelLayerData(event, ${id})">Չեղարկել</button>
+            </div>
+        `;
+
+        const resSelect = content.querySelector('#edit-resourceType');
+        if (layer.options.resourceType) {
+            resSelect.value = layer.options.resourceType;
+        }
+
+        layer.bindPopup(content, { closeButton: false, autoClose: false });
+        setTimeout(() => { layer.openPopup(); }, 20);
+    }
+
+    function encodeImageFileAsURL(element) {
+        const file = element.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onloadend = function() {
+                element.setAttribute('data-base64', reader.result);
+            }
+            reader.readAsDataURL(file);
+        }
+    }
+
+    function saveLayerData(e, id) {
+        if (e) {
+            L.DomEvent.stopPropagation(e);
+            e.preventDefault();
+        }
+
+        const layer = drawnItems.getLayer(id);
+        if (!layer) return;
+
+        const popupContent = layer.getPopup().getContent();
+        const title = popupContent.querySelector('#edit-title').value;
+        const description = popupContent.querySelector('#edit-description').value;
+        const linkText = popupContent.querySelector('#edit-link-text').value;
+        const linkUrl = popupContent.querySelector('#edit-link-url').value;
+        const resourceTypeDropdown = popupContent.querySelector('#edit-resourceType');
+        const resourceType = resourceTypeDropdown.value;
+        const color = popupContent.querySelector('#edit-color').value;
+        const base64Image = popupContent.querySelector('#edit-image').getAttribute('data-base64');
+
+        map.closePopup(); 
+        map.options.closePopupOnClick = true; 
+
+        const selectedOption = resourceTypeDropdown.options[resourceTypeDropdown.selectedIndex];
+        const optgroup = selectedOption ? selectedOption.parentNode : null;
+        
+        let categoryName = layer.options.resourceCategory || "📍 Այլ"; 
+        let resourceIcon = layer.options.resourceIcon || '';
+
+        if (selectedOption && optgroup) {
+            if (optgroup.tagName === 'OPTGROUP') {
+                categoryName = optgroup.getAttribute('label') || "📍 Այլ";
+            } else {
+                categoryName = "💎 Հանքատեսակներ";
+            }
+            resourceIcon = selectedOption.getAttribute('data-icon') || '';
+        }
+
+        const finalTitle = title || resourceType;
+        
+        layer.options.title = finalTitle;
+        layer.options.description = description;
+        layer.options.linkText = linkText;
+        layer.options.linkUrl = linkUrl;
+        layer.options.resourceType = resourceType;
+        layer.options.resourceCategory = categoryName;
+        layer.options.resourceIcon = resourceIcon; 
+        layer.options.color = color;
+        layer.options.image = base64Image || layer.options.image;
+
+        if (layer.setStyle) layer.setStyle({ color: color, fillColor: color });
+        if (layer instanceof L.Marker) updateSingleMarkerIcon(layer);
+
+        setTimeout(() => {
+            updatePopup(layer);
+            updateLegend();
+            activateHighlight('id', id);
+        }, 50);
+    }
+
+    function cancelLayerData(e, id) {
+        if (e) {
+            L.DomEvent.stopPropagation(e);
+            e.preventDefault();
+        }
+
+        const layer = drawnItems.getLayer(id);
+        if (layer) {
+            map.closePopup(); 
+            map.options.closePopupOnClick = true; 
+            setTimeout(() => {
+                updatePopup(layer);
+            }, 50);
+        }
+    }
+
+    function deleteLayerData(id) {
+        if (confirm("Վստա՞հ եք, որ ուզում եք ընդմիշտ ջնջել այս օբյեկտը և դրա ամբողջ ինֆորմացիան։")) {
+            const layer = drawnItems.getLayer(id);
+            if (layer) {
+                drawnItems.removeLayer(layer);
+                map.removeLayer(layer);
+                updateLegend();
+                resetHighlight();
+            }
+        }
+    }
+
+    function updatePopup(layer) {
+        map.options.closePopupOnClick = true;
+
+        const id = drawnItems.getLayerId(layer);
+        const content = document.createElement('div');
+        content.style.minWidth = "220px";
+        content.style.display = "flex";
+        content.style.flexDirection = "column";
+        content.style.gap = "3px";
+
+        let imageHtml = '';
+        if (layer.options.image) {
+            imageHtml = `<img src="${layer.options.image}" style="width:100%; max-height:160px; object-fit:cover; border-radius:6px; margin: 5px 0; display:block;" />`;
+        }
+
+        let headerHtml = layer.options.resourceType === layer.options.title ? 
+            `<b style="font-size:14px; color:#2c3e50; display:block; margin-bottom:4px;">${layer.options.title || 'Անհայտ'}</b>` :
+            `<span style="font-size:10px; color:#718096; text-transform:uppercase; font-weight:bold; letter-spacing:0.5px;">${layer.options.resourceType}</span>
+             <b style="font-size:14px; color:#2c3e50; display:block; margin-bottom:4px;">${layer.options.title}</b>`;
+
+        let descriptionHtml = layer.options.description ? 
+            `<span style="font-size:12px; color:#555; max-height:80px; overflow-y:auto; display:block; margin-bottom:4px;">${layer.options.description}</span>` : '';
+
+        // Հղման արտապատկերում
+        let linkHtml = '';
+        if (layer.options.linkUrl) {
+            const linkText = layer.options.linkText || 'Անցնել հղումով';
+            let url = layer.options.linkUrl.trim();
+            if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                url = 'https://' + url;
+            }
+            linkHtml = `<div style="margin-top:4px;"><a href="${url}" target="_blank" style="color:#3182ce; font-weight:bold; font-size:12px; text-decoration:underline;">🔗 ${linkText}</a></div>`;
+        }
+
+        const isEditable = currentUserEmail && (!loadedMapAuthor || loadedMapAuthor === "Guest" || loadedMapAuthor === currentUserEmail);
+        let actionButtonsHtml = '';
+        if (isEditable) {
+            actionButtonsHtml = `
+                <div style="display: flex; gap: 5px; margin-top: 8px;">
+                    <button class="btn-edit-popup" style="color: white; background: #3182ce; flex-grow: 1; margin-top:0;" onclick="editLayerData(${id})">Խմբագրել</button>
+                    <button class="btn-edit-popup" style="color: white; background: #e53e3e; flex-grow: 1; margin-top:0;" onclick="deleteLayerData(${id})">Ջնջել</button>
+                </div>`;
+        }
+
+        content.innerHTML = `
+            ${headerHtml} ${imageHtml} ${descriptionHtml} ${linkHtml}
+            ${actionButtonsHtml}
+        `;
+        
+        layer.bindPopup(content, { closeButton: true, autoClose: true });
+    }
+
+    function updateLegend() {
+        const list = document.getElementById('legend-list');
+        list.innerHTML = '';
+        
+        const categories = {};
+        drawnItems.eachLayer(layer => {
+            const cat = layer.options.resourceCategory || "📍 Այլ";
+            if (!categories[cat]) categories[cat] = [];
+            categories[cat].push(layer);
+        });
+
+        for (const [catName, layers] of Object.entries(categories)) {
+            if (!(catName in activeFilters)) activeFilters[catName] = true;
+            
+            const groupDiv = document.createElement('div');
+            groupDiv.className = 'category-group';
+            
+            const header = document.createElement('div');
+            header.className = 'category-header';
+            
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.checked = activeFilters[catName];
+            checkbox.onclick = (e) => {
+                e.stopPropagation();
+                activeFilters[catName] = checkbox.checked;
+                filterLayers();
+            };
+
+            header.innerHTML = `<div class="category-title">${catName} (${layers.length})</div><div class="arrow">▼</div>`;
+            header.prepend(checkbox);
+
+            const content = document.createElement('div');
+            content.className = 'category-content';
+            header.onclick = () => {
+                content.classList.toggle('open');
+            };
+
+            const groupsByTitle = {};
+            layers.forEach(l => {
+                const title = l.options.title || l.options.resourceType;
+                if (!groupsByTitle[title]) groupsByTitle[title] = [];
+                groupsByTitle[title].push(l);
+            });
+
+            let matchTitle = "";
+            if (highlightMode === 'id') {
+                const tl = drawnItems.getLayer(highlightValue);
+                if (tl) matchTitle = tl.options.title;
+            } else if (highlightMode === 'title') {
+                matchTitle = highlightValue;
+            }
+
+            for (const [title, layersArray] of Object.entries(groupsByTitle)) {
+                const subItem = document.createElement('div');
+                subItem.className = 'sub-item';
+                subItem.setAttribute('data-title', title);
+                subItem.style.borderLeftColor = layersArray[0].options.color || '#3498db';
+                
+                subItem.innerHTML = `<b>${title}</b>`;
+                
+                if (highlightMode !== null && title === matchTitle) {
+                    subItem.style.opacity = "1";
+                    subItem.style.background = "rgba(99, 179, 237, 0.25)";
+                } else if (highlightMode !== null) {
+                    subItem.style.opacity = "0.4"; 
+                }
+
+                subItem.onclick = (e) => {
+                    e.stopPropagation();
+                    const tmpGroup = L.featureGroup(layersArray);
+                    if (layersArray.length === 1 && layersArray[0] instanceof L.Marker) {
+                        map.panTo(layersArray[0].getLatLng());
+                    } else {
+                        map.fitBounds(tmpGroup.getBounds(), { maxZoom: 12, padding: [40, 40] });
+                    }
+                    activateHighlight('title', title);
+                    
+                    if (layersArray.length === 1) {
+                        layersArray[0].openPopup();
+                    }
+                };
+                content.appendChild(subItem);
+            }
+
+            groupDiv.appendChild(header);
+            groupDiv.appendChild(content);
+            list.appendChild(groupDiv);
+        }
+    }
+
+    function filterLayers() {
+        drawnItems.eachLayer(layer => {
+            const cat = layer.options.resourceCategory || "📍 Այլ";
+            activeFilters[cat] ? map.addLayer(layer) : map.removeLayer(layer);
+        });
+        resetHighlight();
+    }
+
+    function saveMapToURL() {
+        const dataToSave = [];
+        drawnItems.eachLayer(layer => {
+            const geojson = layer.toGeoJSON();
+            geojson.properties = {
+                title: layer.options.title,
+                description: layer.options.description,
+                linkText: layer.options.linkText,
+                linkUrl: layer.options.linkUrl,
+                resourceType: layer.options.resourceType,
+                resourceCategory: layer.options.resourceCategory,
+                resourceIcon: layer.options.resourceIcon,
+                color: layer.options.color,
+                image: layer.options.image
+            };
+            dataToSave.push(geojson);
+        });
+
+        const title = document.getElementById('mapTitleInput').value.trim() || "ՀՀ Միասնական Քարտեզ";
+        
+        const packet = {
+            title: title,
+            author: currentUserEmail || "Guest",
+            features: dataToSave
+        };
+
+        const jsonStr = JSON.stringify(packet);
+        const encodedData = btoa(unescape(encodeURIComponent(jsonStr))); 
+        window.location.hash = encodedData;
+
+        const fullURL = window.location.href;
+        document.getElementById('shareLinkBox').innerText = fullURL;
+        document.getElementById('shareLinkContainer').style.display = 'block';
+
+        saveToLocalStorageList(title, encodedData);
+    }
+
+    function loadMapFromURL() {
+        const hash = window.location.hash.substring(1);
+        if (!hash) {
+            checkPermissions(); 
+            renderMyMapsList();
+            return;
+        }
+
+        try {
+            const decodedStr = decodeURIComponent(escape(atob(hash)));
+            const parsed = JSON.parse(decodedStr);
+            
+            let geojsonArray = [];
+            let mapTitle = "ՀՀ Միասնական Քարտեզ";
+
+            if (parsed && parsed.features) {
+                geojsonArray = parsed.features;
+                mapTitle = parsed.title || "ՀՀ Միասնական Քարտեզ";
+                loadedMapAuthor = parsed.author || "Guest";
+            } else if (Array.isArray(parsed)) {
+                geojsonArray = parsed;
+                loadedMapAuthor = "Guest";
+            }
+
+            document.getElementById('mapTitleInput').value = mapTitle;
+            updateLiveTitle(mapTitle);
+
+            geojsonArray.forEach(item => {
+                L.geoJSON(item, {
+                    pointToLayer: function (feature, latlng) {
+                        return L.marker(latlng);
+                    },
+                    onEachFeature: function (feature, layer) {
+                        const props = feature.properties;
+                        layer.options = layer.options || {};
+                        layer.options.title = props.title;
+                        layer.options.description = props.description;
+                        layer.options.linkText = props.linkText;
+                        layer.options.linkUrl = props.linkUrl;
+                        layer.options.resourceType = props.resourceType;
+                        layer.options.resourceCategory = props.resourceCategory;
+                        layer.options.resourceIcon = props.resourceIcon;
+                        layer.options.color = props.color;
+                        layer.options.image = props.image;
+
+                        if (layer instanceof L.Marker) {
+                            updateSingleMarkerIcon(layer);
+                        }
+
+                        drawnItems.addLayer(layer);
+                        attachLayerClickEvent(layer);
+                        updatePopup(layer);
+                    }
+                });
+            });
+            updateLegend();
+            checkPermissions();
+            renderMyMapsList();
+        } catch (e) {
+            console.error("Հղումից տվյալների վերականգնման սխալ:", e);
+        }
+    }
+
+    // ՄԻԱՅՆ ԿԵՏԱՅԻՆ (MARKER) ՆՇՈՒՄՆԵՐԻ ԳՈՐԾԻՔԱՇԱՐ
+    const drawControl = new L.Control.Draw({
+        edit: { featureGroup: drawnItems },
+        draw: { 
+            marker: true,               // Թողնված է միայն կետային նշումը
+            polygon: false,             // Անջատված է
+            rectangle: false,           // Անջատված է
+            polyline: false,            // Անջատված է
+            circle: false,              // Անջատված է
+            circlemarker: false         // Անջատված է
+        }
+    });
+
+    map.on(L.Draw.Event.CREATED, function (e) {
+        let layer = e.layer;
+        
+        const mineralSelect = document.getElementById('mineralSelector');
+        const animalSelect = document.getElementById('animalSelector');
+        const climateSelect = document.getElementById('climateSelector');
+        const landscapeSelect = document.getElementById('landscapeSelector');
+        
+        let selectedOption = null;
+        let categoryName = "📍 Այլ";
+        let resourceName = "";
+        let resourceIcon = "";
+        let autoDescription = "";
+        let autoImage = null;
+
+        if (mineralSelect.value !== "") {
+            selectedOption = mineralSelect.options[mineralSelect.selectedIndex];
+            categoryName = "💎 Հանքատեսակներ";
+            resourceName = selectedOption.value;
+            resourceIcon = selectedOption.getAttribute('data-icon') || "💎";
+        } else if (animalSelect.value !== "") {
+            selectedOption = animalSelect.options[animalSelect.selectedIndex];
+            const optgroup = selectedOption.parentNode;
+            if (optgroup && optgroup.tagName === 'OPTGROUP') {
+                categoryName = optgroup.getAttribute('label') || "📍 Այլ";
+            }
+            resourceName = selectedOption.value;
+            resourceIcon = selectedOption.getAttribute('data-icon') || "🐾";
+            autoDescription = selectedOption.getAttribute('data-desc') || "";
+            autoImage = selectedOption.getAttribute('data-img') || null;
+        } else if (climateSelect.value !== "") {
+            selectedOption = climateSelect.options[climateSelect.selectedIndex];
+            categoryName = "⛅ Կլիմայի վերընթաց գոտիներ";
+            resourceName = selectedOption.value;
+            resourceIcon = selectedOption.getAttribute('data-icon') || "⛅";
+        } else if (landscapeSelect.value !== "") {
+            selectedOption = landscapeSelect.options[landscapeSelect.selectedIndex];
+            categoryName = "🏞️ ՀՀ վերընթաց լանդշաֆտները";
+            resourceName = selectedOption.value;
+            resourceIcon = selectedOption.getAttribute('data-icon') || "🏞";
+        }
+
+        if (resourceName === "") {
+            alert("Խնդրում ենք ձախ մենյուից ընտրել որևէ բաժին։");
+            return;
+        }
+
+        const color = document.getElementById('colorPicker').value;
+
+        layer.options.title = resourceName;
+        layer.options.description = autoDescription;
+        layer.options.resourceType = resourceName;
+        layer.options.resourceCategory = categoryName;
+        layer.options.resourceIcon = resourceIcon; 
+        layer.options.color = color;
+        layer.options.image = autoImage;
+
+        if (e.layerType === 'marker') updateSingleMarkerIcon(layer); 
+
+        drawnItems.addLayer(layer);
+        attachLayerClickEvent(layer);
+        updatePopup(layer);
+        updateLegend();
+        activateHighlight('id', drawnItems.getLayerId(layer));
+    });
+
+    map.on(L.Draw.Event.CREATED, updateLegend);
+    map.on(L.Draw.Event.EDITED, updateLegend);
+    map.on(L.Draw.Event.DELETED, updateLegend);
+
+    window.onload = function() {
+        loadMapFromURL();
+        setTimeout(() => { map.invalidateSize(); }, 200);
+    };
+</script>
+
+</body>
+</html>
